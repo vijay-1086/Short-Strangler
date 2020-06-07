@@ -1,28 +1,49 @@
-const axios = require('axios')
-const fs = require('fs')
-const appRoot = require('app-root-path')
-const path = require('path');
+const axios = require("axios");
+const appRoot = require("app-root-path");
+const path = require("path");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+dayjs.extend(utc);
+const unzipper = require("unzipper");
 
-const uri = 'https://www1.nseindia.com/content/historical/DERIVATIVES/2020/MAY/fo29MAY2020bhav.csv.zip'
-const writer = fs.createWriteStream('C:/Users/vijay/Documents/VG/Strangler-New/Short-Strangler/downloads/bhavcopy.csv.zip')
+const csvPath = path.join(appRoot.path, "downloads");
 
-// Todo: Dymanic url based on date
-// Todo: Load data into database
+function getUri() {
+  let uri = "https://www1.nseindia.com/content/historical/DERIVATIVES";
 
-function loadBhavCopy() {
-    return axios({
-        url: uri,
-        method: 'GET',
-        headers: { 'user-agent': 'Mozilla/5.0' },
-        responseType: 'stream'
-    })
-    .then(function(response) {
-        response.data.pipe(writer)
-    })
-    .catch(error => {
-        console.log(error)
-    })
+  const date = getPreviousTradingDate(dayjs.utc());
+  const year = date.format("YYYY");
+  const month = date.format("MMM").toUpperCase();
+  const day = date.format("DD");
+
+  uri += "/" + year + "/" + month + "/fo" + day + month + year + "bhav.csv.zip";
+  return uri;
 }
 
-loadBhavCopy();
+function getPreviousTradingDate(date) {
+  const thisDate = dayjs(date).add(-1, "d");
+  const day = thisDate.format("d");
+  if (day == 6 || day == 0) return getPreviousTradingDate(thisDate);
+
+  return thisDate;
+}
+
+// Todo: Load data into database
+
+function fetchBhavCopy() {
+  return axios({
+    url: getUri(),
+    method: "GET",
+    headers: { "user-agent": "Mozilla/5.0" },
+    responseType: "stream",
+  })
+    .then(function (response) {
+      response.data.pipe(unzipper.Extract({ path: csvPath }));
+    })
+    .catch((error) => {
+      console.log(error);
+    });
+}
+
+fetchBhavCopy();
 //module.exports.loadBhavCopy = loadBhavCopy;
