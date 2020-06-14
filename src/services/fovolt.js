@@ -8,7 +8,7 @@ const fs = require("fs");
 const csv = require("csv-parser");
 const _ = require("lodash");
 
-const csvPath = path.join(appRoot.path, "downloads", "fovolt.csv");
+const csvPath = path.join(appRoot.path, "downloads", "files", "fovolt.csv");
 const results = [];
 
 function getUri() {
