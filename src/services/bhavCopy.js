@@ -8,8 +8,12 @@ const unzipper = require("unzipper");
 const csv = require("csv-parser");
 const fs = require("fs");
 const _ = require("lodash");
+const sqlite3 = require("sqlite3").verbose();
+const debug = require("debug")("bhavCopy");
+const chalk = require("chalk");
 
 const CSV_PATH = path.join(appRoot.path, "downloads/files");
+const DB_PATH = path.join((appRoot.path, "database/strangler.db"));
 let fileName;
 let results = [];
 
@@ -35,7 +39,6 @@ function getPreviousTradingDate(date) {
     return thisDate;
 }
 
-// Todo: Load data into database
 function deleteFiles() {
     fs.readdir(CSV_PATH, (error, files) => {
         if (error)
@@ -48,7 +51,6 @@ function deleteFiles() {
             })
         }
     });
-    console.log("files deleted");
 }
 
 async function fetchBhavcopy() {
@@ -59,9 +61,7 @@ async function fetchBhavcopy() {
         responseType: "stream"
     })
         .then((response) => {
-            console.log("response received");
             response.data.pipe(unzipper.Extract({ path: CSV_PATH }));
-            console.log("file extracted");
         })
         .catch((error) => {
             console.log(error);
@@ -69,28 +69,45 @@ async function fetchBhavcopy() {
 }
 
 function readBhavcopy() {
-    console.log("Read start");
     const reader = fs.createReadStream(fileName);
     reader.pipe(csv())
         .on("data", (data) => {
             results.push(data);
         }).on("end", () => {
-            console.log(results.length);
-            console.log(_.last(results));
+            debug(`Length of bhavcopy collection = ${chalk.bgCyanBright(results.length)}`);
+            uploadToDatabase();
         }).on("error", (error) => {
             console.log(error);
-        })
+        });
 }
 
+function uploadToDatabase() {      
+    let startTime = Date.now();
+    
+    let db = new sqlite3.Database(DB_PATH);
+    db.run("DELETE FROM FoBhavcopy");
+    db.run("Begin transaction");
+
+    _.forEach(results, row => {
+        let query = `INSERT INTO FoBhavcopy (Instrument, Symbol, ExpiryDate, StrikePrice, OptionType, OpenPrice, HighPrice, 
+                    LowPrice, ClosePrice, SettlePrice, Contracts, ValueInLakhs, OpenInterest, ChangeInOI, CopyDate)
+                        VALUES ("${row.INSTRUMENT}", "${row.SYMBOL}", "${row.EXPIRY_DT}", ${row.STRIKE_PR}, "${row.OPTION_TYP}", ${row.OPEN}, ${row.HIGH}, ${row.LOW}, 
+                        ${row.CLOSE}, ${row.SETTLE_PR}, ${row.CONTRACTS}, ${row.VAL_INLAKH}, ${row.OPEN_INT}, ${row.CHG_IN_OI}, "${row.TIMESTAMP}")`;
+        db.run(query);
+    });
+
+    db.run("commit");
+    db.close(function() {
+        console.log(`Time taken to upload ${chalk.blueBright(results.length)} records - ${chalk.cyanBright((Date.now() - startTime)/1000)}s`);
+    });    
+}
 
 async function loadBhavcopy() {
     deleteFiles();
     await fetchBhavcopy();
 
     setTimeout(readBhavcopy, 1000);
-    console.log("method end");
 }
 
-loadBhavcopy();
-
-//module.exports.loadBhavCopy = loadBhavCopy;
+//loadBhavcopy();
+module.exports.loadBhavcopy = loadBhavcopy;
