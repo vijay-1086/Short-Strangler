@@ -19,6 +19,7 @@
     "jquery": "^3.5.1",
     "lodash": "^4.17.15",
     "morgan": "^1.10.0",
+    "sqlite3": "^5.0.0",
     "unzipper": "^0.10.11"
   },
   "devDependencies": {
