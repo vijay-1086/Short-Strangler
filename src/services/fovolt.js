@@ -7,11 +7,10 @@ dayjs.extend(utc);
 const fs = require("fs");
 const csv = require("csv-parser");
 const _ = require("lodash");
-const sqlite3 = require("sqlite3").verbose();
 const chalk = require("chalk");
+const connection = require("./dbConnection");
 
-const csvPath = path.join(appRoot.path, "downloads", "files", "fovolt.csv");
-const DB_PATH = path.join((appRoot.path, "database/strangler.db"));
+const CSV_PATH = path.join(appRoot.path, "downloads", "files", "fovolt.csv");
 const results = [];
 const symbol = " Symbol";
 const annualised_volatility = " Applicable Annualised Volatility (N) = Max (F or L)";
@@ -44,7 +43,7 @@ async function fetchFovolt() {
         responseType: "stream",
     })
         .then((response) => {
-            response.data.pipe(fs.createWriteStream(csvPath));
+            response.data.pipe(fs.createWriteStream(CSV_PATH));
         })
         .catch((error) => {
             console.log(error);
@@ -52,7 +51,7 @@ async function fetchFovolt() {
 }
 
 function readFovolt() {
-    const reader = fs.createReadStream(csvPath);
+    const reader = fs.createReadStream(CSV_PATH);
     reader.pipe(csv())
         .on("data", (data) => {
             results.push(data);
@@ -66,20 +65,20 @@ function readFovolt() {
 function uploadToDatabase() {
     let startTime = Date.now();
     
-    let db = new sqlite3.Database(DB_PATH);
+    let db = connection.getDatabase();
     
     db.run("DELETE FROM fovolt");
     db.run("Begin transaction");
 
     _.forEach(results, row => {
-        let query = `INSERT INTO fovolt (CopyDate, Symbol, AnnualisedVolatility) VALUES ("${row.Date}", "${row[symbol]}", ${row[annualised_volatility]*1})`;
-        console.log(query);
+        let query = `INSERT INTO fovolt (CopyDate, Symbol, AnnualisedVolatility) VALUES ("${new Date(row.Date).toISOString().split('T')[0]}", "${row[symbol]}", ${row[annualised_volatility]*1})`;
+        //console.log(query);
         db.run(query);        
     });
 
     setTimeout(function() {
         db.run("commit");
-        db.close(function() {
+        connection.closeDatabase(function() {
             console.log(`Time taken to upload ${chalk.blueBright(results.length)} records - ${chalk.cyanBright((Date.now() - startTime))}ms`);
         });
     }, 1000);
@@ -92,5 +91,7 @@ async function loadFovolt() {
 
 //loadFovolt();
 
-module.exports.loadFovolt = loadFovolt;
+module.exports = {
+    loadFovolt
+};
 

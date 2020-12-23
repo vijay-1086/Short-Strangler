@@ -8,12 +8,11 @@ const unzipper = require("unzipper");
 const csv = require("csv-parser");
 const fs = require("fs");
 const _ = require("lodash");
-const sqlite3 = require("sqlite3").verbose();
 const debug = require("debug")("bhavCopy");
 const chalk = require("chalk");
+const connection = require("./dbConnection");
 
 const CSV_PATH = path.join(appRoot.path, "downloads/files");
-const DB_PATH = path.join((appRoot.path, "database/strangler.db"));
 let fileName;
 let results = [];
 
@@ -84,22 +83,22 @@ function readBhavcopy() {
 function uploadToDatabase() {      
     let startTime = Date.now();
     
-    let db = new sqlite3.Database(DB_PATH);
+    let db = connection.getDatabase();
     db.run("DELETE FROM FoBhavcopy");
     db.run("Begin transaction");
 
     _.forEach(results, row => {
         let query = `INSERT INTO FoBhavcopy (Instrument, Symbol, ExpiryDate, StrikePrice, OptionType, OpenPrice, HighPrice, 
                     LowPrice, ClosePrice, SettlePrice, Contracts, ValueInLakhs, OpenInterest, ChangeInOI, CopyDate)
-                        VALUES ("${row.INSTRUMENT}", "${row.SYMBOL}", "${row.EXPIRY_DT}", ${row.STRIKE_PR}, "${row.OPTION_TYP}", ${row.OPEN}, ${row.HIGH}, ${row.LOW}, 
-                        ${row.CLOSE}, ${row.SETTLE_PR}, ${row.CONTRACTS}, ${row.VAL_INLAKH}, ${row.OPEN_INT}, ${row.CHG_IN_OI}, "${row.TIMESTAMP}")`;
+                        VALUES ("${row.INSTRUMENT}", "${row.SYMBOL}", "${new Date(row.EXPIRY_DT).toISOString().split('T')[0]}", ${row.STRIKE_PR}, "${row.OPTION_TYP}", ${row.OPEN}, ${row.HIGH}, ${row.LOW}, 
+                        ${row.CLOSE}, ${row.SETTLE_PR}, ${row.CONTRACTS}, ${row.VAL_INLAKH}, ${row.OPEN_INT}, ${row.CHG_IN_OI}, "${new Date(row.TIMESTAMP).toISOString().split('T')[0]}")`;
         db.run(query);
     });
 
     db.run("commit");
-    db.close(function() {
+    connection.closeDatabase(function() {
         console.log(`Time taken to upload ${chalk.blueBright(results.length)} records - ${chalk.cyanBright((Date.now() - startTime)/1000)}s`);
-    });    
+    })    
 }
 
 async function loadBhavcopy() {
@@ -110,4 +109,6 @@ async function loadBhavcopy() {
 }
 
 //loadBhavcopy();
-module.exports.loadBhavcopy = loadBhavcopy;
+module.exports = {
+    loadBhavcopy
+};
