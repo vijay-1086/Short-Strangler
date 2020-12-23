@@ -22,5 +22,6 @@ function closeDatabase(callback) {
 
 module.exports = {
     getDatabase,
-    closeDatabase
+    closeDatabase,
+    DB_PATH
 };
